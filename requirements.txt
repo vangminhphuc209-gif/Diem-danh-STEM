@@ -1,0 +1,25 @@
+# ── Thu vien can cai (pip install -r requirements.txt) -----------------------
+
+# Camera va QR
+opencv-python>=4.8.0
+opencv-contrib-python>=4.8.0   # Haar Cascade extra models
+pyzbar>=0.1.9
+
+# Google Sheets
+gspread>=6.0.0
+oauth2client>=4.1.3
+
+# Tao the QR
+qrcode[pil]>=7.4.2
+Pillow>=10.0.0
+
+# Nhan dien khuon mat (can dlib + cmake)
+# Windows: pip install cmake dlib face_recognition
+# Linux  : pip install cmake dlib face_recognition
+face-recognition>=1.3.0
+
+# So hoc
+numpy>=1.24.0
+
+# [Tuy chon] Xuat PDF the QR
+# reportlab>=4.0.0

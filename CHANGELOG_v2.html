@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Changelog — Diem Danh STEM v2.0</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--border:#30363d;
+  --green:#3fb950;--red:#f85149;--yellow:#d29922;--blue:#58a6ff;--purple:#bc8cff;--orange:#ffa657;
+  --text:#e6edf3;--muted:#8b949e;
+}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;padding:0 0 60px}
+header{
+  background:linear-gradient(135deg,#0d1117 0%,#1a2340 50%,#0d1117 100%);
+  border-bottom:1px solid var(--border);
+  padding:48px 40px 36px;text-align:center;
+  position:relative;overflow:hidden;
+}
+header::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(88,166,255,0.12),transparent);
+  pointer-events:none;
+}
+.version-badge{
+  display:inline-block;background:var(--green);color:#0d1117;
+  font-weight:800;font-size:.75rem;padding:4px 14px;border-radius:20px;
+  letter-spacing:.08em;margin-bottom:18px;
+}
+header h1{font-size:2.4rem;font-weight:800;letter-spacing:-.02em;margin-bottom:8px;}
+header h1 span{color:var(--blue);}
+header p{color:var(--muted);font-size:.95rem;}
+.container{max-width:960px;margin:0 auto;padding:0 24px;}
+
+/* STATS ROW */
+.stats-row{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:16px;
+  margin:40px 0 48px;
+}
+.stat{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:20px 16px;text-align:center;
+}
+.stat .num{font-size:2.2rem;font-weight:800;display:block;}
+.stat .lbl{font-size:.78rem;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.06em;}
+.stat.green .num{color:var(--green);}
+.stat.red   .num{color:var(--red);}
+.stat.blue  .num{color:var(--blue);}
+.stat.orange .num{color:var(--orange);}
+
+/* FILE SECTIONS */
+.file-section{margin-bottom:36px;}
+.file-header{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 20px;background:var(--surface);
+  border:1px solid var(--border);border-radius:12px 12px 0 0;
+  cursor:pointer;user-select:none;
+}
+.file-header:hover{background:#1c2333;}
+.file-icon{font-size:1.1rem;}
+.file-name{font-family:'JetBrains Mono',monospace;font-size:.95rem;font-weight:700;color:var(--blue);}
+.file-tags{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;}
+.tag{
+  font-size:.68rem;font-weight:700;padding:3px 10px;border-radius:20px;
+  letter-spacing:.05em;text-transform:uppercase;
+}
+.tag.bug{background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.3);}
+.tag.new{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);}
+.tag.new-file{background:rgba(188,140,255,.15);color:var(--purple);border:1px solid rgba(188,140,255,.3);}
+
+.file-body{
+  border:1px solid var(--border);border-top:none;
+  border-radius:0 0 12px 12px;overflow:hidden;
+}
+.change-row{
+  display:flex;gap:0;border-bottom:1px solid var(--border);
+  transition:background .15s;
+}
+.change-row:last-child{border-bottom:none;}
+.change-row:hover{background:rgba(255,255,255,.03);}
+.change-type{
+  min-width:90px;display:flex;align-items:center;justify-content:center;
+  font-size:.7rem;font-weight:700;letter-spacing:.06em;
+  padding:14px 8px;
+}
+.change-type.bug{color:var(--red);background:rgba(248,81,73,.07);}
+.change-type.new{color:var(--green);background:rgba(63,185,80,.07);}
+.change-body{padding:14px 20px;flex:1;}
+.change-title{font-weight:700;font-size:.9rem;margin-bottom:4px;}
+.change-desc{font-size:.82rem;color:var(--muted);line-height:1.55;}
+code{
+  font-family:'JetBrains Mono',monospace;font-size:.8rem;
+  background:rgba(88,166,255,.1);color:var(--blue);
+  padding:1px 6px;border-radius:4px;
+}
+
+/* NEW FILE BANNER */
+.new-file-banner{
+  background:linear-gradient(90deg,rgba(188,140,255,.12),rgba(88,166,255,.08));
+  border:1px solid rgba(188,140,255,.3);border-radius:12px;
+  padding:18px 24px;margin-bottom:12px;
+  display:flex;align-items:center;gap:16px;
+}
+.new-file-banner .icon{font-size:1.8rem;}
+.new-file-banner h3{font-size:1rem;font-weight:700;color:var(--purple);}
+.new-file-banner p{font-size:.82rem;color:var(--muted);margin-top:3px;}
+
+/* HOTKEYS */
+.hotkeys-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:24px;}
+.hk{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;
+}
+.hk kbd{
+  font-family:'JetBrains Mono',monospace;font-size:.9rem;font-weight:700;
+  background:#21262d;border:1px solid #484f58;border-bottom:3px solid #484f58;
+  padding:4px 10px;border-radius:6px;color:var(--text);min-width:36px;text-align:center;
+}
+.hk span{font-size:.82rem;color:var(--muted);}
+
+h2{font-size:1.3rem;font-weight:800;margin:48px 0 20px;color:var(--text);}
+h2 span{color:var(--blue);}
+.section-note{font-size:.82rem;color:var(--muted);margin:-12px 0 20px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="container">
+    <div class="version-badge">v2.0 RELEASE</div>
+    <h1>Diem Danh STEM — <span>Changelog</span></h1>
+    <p>Nang cap toan dien: 5 bug da sua · 8+ tinh nang moi · 1 file moi</p>
+  </div>
+</header>
+
+<div class="container">
+  <div class="stats-row">
+    <div class="stat red">  <span class="num">5</span><span class="lbl">Bug Da Sua</span></div>
+    <div class="stat green"><span class="num">8+</span><span class="lbl">Tinh Nang Moi</span></div>
+    <div class="stat blue"> <span class="num">7</span><span class="lbl">File Cap Nhat</span></div>
+    <div class="stat orange"><span class="num">1</span><span class="lbl">File Moi</span></div>
+  </div>
+
+  <!-- main.py -->
+  <div class="file-section">
+    <div class="file-header">
+      <span class="file-icon">⚙️</span>
+      <span class="file-name">main.py</span>
+      <div class="file-tags">
+        <span class="tag bug">4 bug</span>
+        <span class="tag new">5 moi</span>
+      </div>
+    </div>
+    <div class="file-body">
+      <div class="change-row">
+        <div class="change-type bug">BUG FIX</div>
+        <div class="change-body">
+          <div class="change-title">Vòng lặp vô hạn khi camera mất kết nối</div>
+          <div class="change-desc">Khi <code>ret=False</code> liên tục (camera ngắt), chương trình trước đây bị treo mà không thoát. Đã thêm <code>cam_fail_count</code> giới hạn 30 lần thử rồi thoát an toàn.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type bug">BUG FIX</div>
+        <div class="change-body">
+          <div class="change-title">RAM leak — recently_scan không bao giờ được dọn</div>
+          <div class="change-desc">Dict <code>recently_scan</code> và <code>last_results</code> tích lũy mãi mãi trong session dài. Đã thêm dọn dẹp mỗi 300 frame, giữ tối đa 10 phút / 10 entry.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type bug">BUG FIX</div>
+        <div class="change-body">
+          <div class="change-title">Mất dữ liệu khi Google Sheets lỗi network</div>
+          <div class="change-desc">Nếu <code>append_rows()</code> throw exception, ban ghi điểm danh bị mất hoàn toàn. Nay fallback tự động sang SQLite offline buffer, đồng bộ lại khi có mạng.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type bug">BUG FIX</div>
+        <div class="change-body">
+          <div class="change-title">get_status_cache không xử lý student_id rỗng/None</div>
+          <div class="change-desc">Nếu QR decode ra chuỗi rỗng hoặc None, hàm trả về trạng thái sai. Đã thêm guard check.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">Offline buffer — SQLite tự động</div>
+          <div class="change-desc">Khi Sheets lỗi → ghi vào SQLite cục bộ. Background thread đồng bộ lên Sheets mỗi <code>AUTO_SYNC_INTERVAL</code> giây khi có mạng trở lại.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">Phím tắt đầy đủ: S / R / P / A</div>
+          <div class="change-desc"><code>S</code>=thống kê chi tiết, <code>R</code>=reload danh sách từ Sheets, <code>P</code>=tạm dừng nhận diện mặt, <code>A</code>=thêm khuôn mặt mới ngay trong runtime.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">Tổng kết cuối ngày tự động</div>
+          <div class="change-desc">Khi nhấn Q để thoát, hệ thống tự ghi tổng kết (có mặt / vắng / vi phạm / giờ bắt đầu-kết thúc) lên sheet <code>TongKet</code>.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">Banner thông báo đẹp + fade-out</div>
+          <div class="change-desc">Thay vì chỉ in log ra console, nay hiện banner lớn ở giữa màn hình camera với màu sắc phân biệt vào/ra/cảnh báo, tự mờ dần sau <code>BANNER_DURATION</code> giây.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">Hiển thị trạng thái mạng trên camera</div>
+          <div class="change-desc">Góc dưới phải hiện <code>[ONLINE]</code> / <code>[OFFLINE - Đang lưu cục bộ]</code> theo thời gian thực, cập nhật mỗi 10 giây trong background thread.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- utils.py -->
+  <div class="file-section">
+    <div class="file-header">
+      <span class="file-icon">🔧</span>
+      <span class="file-name">utils.py</span>
+      <div class="file-tags"><span class="tag bug">1 bug</span><span class="tag new">4 moi</span></div>
+    </div>
+    <div class="file-body">
+      <div class="change-row">
+        <div class="change-type bug">BUG FIX</div>
+        <div class="change-body">
+          <div class="change-title">Unicode crash trên Windows console</div>
+          <div class="change-desc"><code>print_log()</code> dùng emoji ✅ 🔴 gây <code>UnicodeEncodeError</code> trên Windows console code page 437/1252. Đã thêm fallback ASCII <code>[VAO]</code>/<code>[RA]</code>.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">beep chạy trong thread riêng</div>
+          <div class="change-desc"><code>winsound.Beep()</code> block main thread ~150ms. Nay beep chạy trong daemon thread nên camera không bị giật.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">draw_banner() — thông báo lớn giữa màn hình</div>
+          <div class="change-desc">Hàm mới vẽ banner overlay to ở giữa frame với alpha fade-out configurable. Dùng cho sự kiện quét thẻ, cảnh báo vi phạm, reload.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">draw_clock() — đồng hồ góc trên phải</div>
+          <div class="change-desc">Hiển thị giờ <code>HH:MM:SS</code> và ngày tháng trên camera. Bật/tắt bằng <code>SHOW_CLOCK</code> trong config.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">draw_stats() — thống kê có mặt/vắng góc trên trái</div>
+          <div class="change-desc">Hiển thị số học sinh có mặt / vắng realtime trên camera. Bật/tắt bằng <code>SHOW_STATS</code>.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">NetworkChecker — kiểm tra mạng background</div>
+          <div class="change-desc">Class mới dùng socket để ping 8.8.8.8, chạy trong thread riêng, expose property <code>is_online</code> thread-safe.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- face_engine.py -->
+  <div class="file-section">
+    <div class="file-header">
+      <span class="file-icon">👤</span>
+      <span class="file-name">face_engine.py</span>
+      <div class="file-tags"><span class="tag bug">1 bug</span><span class="tag new">4 moi</span></div>
+    </div>
+    <div class="file-body">
+      <div class="change-row">
+        <div class="change-type bug">BUG FIX</div>
+        <div class="change-body">
+          <div class="change-title">Label tên bị vẽ ra ngoài mép màn hình</div>
+          <div class="change-desc">Khi khuôn mặt ở sát mép trái/phải/trên, tọa độ tính ra âm hoặc vượt quá kích thước frame làm crash hoặc hiển thị sai. Đã clamp tất cả tọa độ.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">add_face_live() — thêm khuôn mặt ngay trong runtime</div>
+          <div class="change-desc">Không cần dừng chương trình để thêm học sinh mới. Nhấn <code>A</code>, nhập Mã HS, chụp từ camera → tự động lưu ảnh vào <code>stuface/</code> và cập nhật encoding trong RAM (thread-safe với Lock).</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">Confidence bar hiển thị trong khung mặt</div>
+          <div class="change-desc">Thanh nhỏ dưới mỗi khung khuôn mặt cho thấy % độ chính xác nhận diện. Góc phải trên khung hiện số phần trăm.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">reload() — hot-reload danh sách khuôn mặt</div>
+          <div class="change-desc">Phương thức mới cho phép tải lại toàn bộ khuôn mặt từ <code>stuface/</code> mà không cần khởi động lại chương trình. Kích hoạt qua phím <code>R</code>.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">save_violation_photo() đẹp hơn + quality setting</div>
+          <div class="change-desc">Ảnh vi phạm nay có khung đỏ ngoài cùng, banner cảnh báo rõ hơn, lưu JPEG quality 92. Dễ phân biệt với ảnh thường.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- generate_qr.py -->
+  <div class="file-section">
+    <div class="file-header">
+      <span class="file-icon">🎴</span>
+      <span class="file-name">generate_qr.py</span>
+      <div class="file-tags"><span class="tag bug">1 bug</span><span class="tag new">3 moi</span></div>
+    </div>
+    <div class="file-body">
+      <div class="change-row">
+        <div class="change-type bug">BUG FIX</div>
+        <div class="change-body">
+          <div class="change-title">Tên học sinh quá dài bị tràn ra ngoài thẻ</div>
+          <div class="change-desc"><code>make_card()</code> không kiểm tra độ rộng text. Đã thêm vòng lặp thu nhỏ font size cho đến khi text vừa khung thẻ.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">Thiết kế thẻ đẹp hơn (gradient header, bóng, viền bo)</div>
+          <div class="change-desc">Header gradient từ xanh dương sang tím nhạt, bóng đổ nhẹ dưới QR, box Mã HS có nền màu, viền thẻ bo tròn, footer disclaimer.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">--sheet: xuất nhiều thẻ trên 1 trang A4</div>
+          <div class="change-desc">Tạo ảnh A4 @300DPI với lưới thẻ 4×5, có margin và tiêu đề trang. Sẵn sàng gửi thẳng ra máy in.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">--pdf và --preview</div>
+          <div class="change-desc"><code>--pdf</code> xuất file PDF (cần <code>pip install reportlab</code>). <code>--preview</code> hiện 1 thẻ mẫu trên màn hình trước khi xuất hàng loạt.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- setup_sheets.py -->
+  <div class="file-section">
+    <div class="file-header">
+      <span class="file-icon">📋</span>
+      <span class="file-name">setup_sheets.py</span>
+      <div class="file-tags"><span class="tag bug">1 bug</span><span class="tag new">2 moi</span></div>
+    </div>
+    <div class="file-body">
+      <div class="change-row">
+        <div class="change-type bug">BUG FIX</div>
+        <div class="change-body">
+          <div class="change-title">Import CSV trùng lặp khi chạy lại</div>
+          <div class="change-desc">Mỗi lần chạy <code>setup_sheets.py</code>, học sinh bị import lại từ đầu gây trùng dòng trong sheet. Nay kiểm tra MaHS đã tồn tại trước khi insert.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">Tạo sheet TongKet tự động</div>
+          <div class="change-desc">Sheet báo cáo tổng hợp theo ngày (Tổng HS / Có mặt / Vắng / Vi phạm / Giờ bắt đầu-kết thúc) được tạo tự động với header màu xanh lá.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">Kiểm tra & cập nhật header sheet cũ</div>
+          <div class="change-desc">Nếu sheet cũ thiếu cột mới, tự động cập nhật header mà không xóa dữ liệu.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- init_db.py -->
+  <div class="file-section">
+    <div class="file-header">
+      <span class="file-icon">💾</span>
+      <span class="file-name">init_db.py</span>
+      <div class="file-tags"><span class="tag bug">2 bug</span><span class="tag new">3 moi</span></div>
+    </div>
+    <div class="file-body">
+      <div class="change-row">
+        <div class="change-type bug">BUG FIX</div>
+        <div class="change-body">
+          <div class="change-title">CSV path resolve sai khi chạy từ thư mục khác</div>
+          <div class="change-desc">Dùng <code>os.path.join("..", "students.csv")</code> relative — sai khi chạy từ nơi khác. Nay dùng <code>BASE_DIR</code> tuyệt đối.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type bug">BUG FIX</div>
+        <div class="change-body">
+          <div class="change-title">conn không đóng khi có exception</div>
+          <div class="change-desc">Nếu import CSV bị lỗi giữa chừng, SQLite connection bị leak. Đã bọc trong <code>try/finally</code>.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">Thêm bảng offline_log, offline_violation, TongKet</div>
+          <div class="change-desc">Các bảng mới cần thiết cho offline buffer của main.py v2.0. Schema được định nghĩa tập trung, có index tối ưu.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">Migration schema tự động</div>
+          <div class="change-desc"><code>migrate_schema()</code> kiểm tra PRAGMA table_info và thêm cột còn thiếu — an toàn khi DB cũ chưa có cột <code>da_sync</code>.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">--reset và --summary flags</div>
+          <div class="change-desc"><code>--reset</code> xóa và tạo lại DB (yêu cầu nhập "XAC NHAN"). <code>--summary</code> chỉ hiển thị thống kê, không import.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- test_offline.py -->
+  <div class="file-section">
+    <div class="file-header">
+      <span class="file-icon">🧪</span>
+      <span class="file-name">test_offline.py</span>
+      <div class="file-tags"><span class="tag bug">2 bug</span><span class="tag new">3 moi</span></div>
+    </div>
+    <div class="file-body">
+      <div class="change-row">
+        <div class="change-type bug">BUG FIX</div>
+        <div class="change-body">
+          <div class="change-title">UTF-8 decode crash khi QR chứa ký tự lạ</div>
+          <div class="change-desc">Dùng <code>.decode("utf-8")</code> strict — crash nếu QR code chứa byte không hợp lệ. Đã đổi sang <code>errors='replace'</code>.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type bug">BUG FIX</div>
+        <div class="change-body">
+          <div class="change-title">Vòng lặp vô hạn khi camera lỗi</div>
+          <div class="change-desc">Giống bug trong main.py — thêm <code>MAX_FAILS = 30</code>.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">Hiển thị FPS thực tế + tên học sinh</div>
+          <div class="change-desc">Đọc <code>students.csv</code> và hiển thị tên kèm Mã HS khi quét. FPS thực đo được hiển thị góc trên trái.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">Phím S (tổng kết) + C (xóa lịch sử) + lịch sử 3 lần cuối</div>
+          <div class="change-desc">Góc phải dưới hiện 3 lần quét gần nhất. Phím <code>S</code> in thống kê. Phím <code>C</code> reset session.</div>
+        </div>
+      </div>
+      <div class="change-row">
+        <div class="change-type new">MỚI</div>
+        <div class="change-body">
+          <div class="change-title">--log và --camera flags</div>
+          <div class="change-desc"><code>--log</code> ghi kết quả ra <code>test_log.txt</code>. <code>--camera 1</code> chọn camera index khác.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- dashboard.py (NEW FILE) -->
+  <div class="new-file-banner">
+    <span class="icon">📊</span>
+    <div>
+      <h3>dashboard.py — File Mới Hoàn Toàn</h3>
+      <p>Báo cáo HTML tương tác với biểu đồ Chart.js. Chạy: <code>python dashboard.py --open</code></p>
+    </div>
+  </div>
+
+  <!-- HOTKEYS -->
+  <h2>⌨️ <span>Phím Tắt Mới</span></h2>
+  <p class="section-note">Tất cả phím tắt hoạt động trong cửa sổ camera (main.py)</p>
+  <div class="hotkeys-grid">
+    <div class="hk"><kbd>Q</kbd><span>Thoát + ghi tổng kết</span></div>
+    <div class="hk"><kbd>S</kbd><span>Thống kê có/vắng mặt</span></div>
+    <div class="hk"><kbd>R</kbd><span>Reload danh sách</span></div>
+    <div class="hk"><kbd>P</kbd><span>Tạm dừng nhận diện mặt</span></div>
+    <div class="hk"><kbd>A</kbd><span>Thêm khuôn mặt live</span></div>
+    <div class="hk"><kbd>ESC</kbd><span>Thoát (như Q)</span></div>
+  </div>
+
+  <!-- QUICK START -->
+  <h2>🚀 <span>Nâng Cấp Từ v1.0</span></h2>
+  <div class="file-body" style="border-radius:12px;border:1px solid var(--border);">
+    <div class="change-row" style="flex-direction:column;padding:20px 24px;gap:8px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.85rem;color:var(--green);">
+        # 1. Ghi de cac file moi vao thu muc cu<br>
+        # 2. Chay lai setup de tao sheet TongKet<br>
+        python setup_sheets.py<br><br>
+        # 3. Khoi tao lai DB (them bang moi, khong mat du lieu)<br>
+        python init_db.py<br><br>
+        # 4. Chay he thong<br>
+        python main.py
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
