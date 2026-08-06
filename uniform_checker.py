@@ -28,8 +28,8 @@ from enum import Enum
 
 # ==================== CẤU HÌNH ====================
 BASE_DIR      = Path(__file__).parent
-MODEL_PATH    = BASE_DIR / "data" / "uniform_model.tflite"
-LABELS_PATH   = BASE_DIR / "data" / "uniform_labels.json"
+MODEL_PATH    = BASE_DIR / "data" / "uniform_model_v2.tflite"   # v2: 2 nhãn [dan_toc / other]
+LABELS_PATH   = BASE_DIR / "data" / "uniform_labels_v2.json"    # v2: nhãn tương ứng
 IMAGE_SIZE    = (224, 224)
 CONFIDENCE_THRESHOLD = 0.55  # Độ tự tin tối thiểu, thấp hơn = "Không rõ"
 
