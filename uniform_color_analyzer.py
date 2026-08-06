@@ -15,32 +15,71 @@
     Thu 6  : Ao XANH DUONG (doan) + Quan TOI MAU
     Thu 7  : Nghi
     CN     : Nghi
+
+  Calibration:
+    Chay step1_hsv_calibrator.py -> luu data/hsv_config.json
+    Module nay tu dong load config do neu ton tai,
+    fallback ve gia tri mac dinh neu chua calibrate.
 =============================================================
 """
 
 import cv2
 import numpy as np
+import json
+from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass
 from typing import Tuple, Optional
 
 
+# ==================== TU DONG LOAD CALIBRATION CONFIG ====================
+_CONFIG_PATH = Path(__file__).parent / "data" / "hsv_config.json"
+
+# Gia tri mac dinh (dung khi chua calibrate)
+_DEFAULTS = {
+    "white"      : {"s_max": 60,  "v_min": 160},
+    "blue"       : {"h_min": 95,  "h_max": 135, "s_min": 60, "v_min": 40},
+    "dark_pants" : {"v_max": 100, "ratio_min": 0.45},
+}
+
+def _load_hsv_config() -> dict:
+    """Load HSV config tu file JSON neu co, fallback ve default."""
+    if _CONFIG_PATH.exists():
+        try:
+            with open(_CONFIG_PATH, encoding="utf-8") as f:
+                cfg = json.load(f)
+            print(f"[ColorAnalyzer] Da load HSV config tu: {_CONFIG_PATH}")
+            cal_time = cfg.get("calibrated_at", "?")
+            print(f"                Calibrated at: {cal_time}")
+            # Merge voi default de dam bao day du key
+            merged = {k: dict(v) for k, v in _DEFAULTS.items()}
+            for section in ("white", "blue", "dark_pants"):
+                if section in cfg:
+                    merged[section].update(cfg[section])
+            return merged
+        except Exception as e:
+            print(f"[ColorAnalyzer] WARN: Loi doc config ({e}) - Dung gia tri mac dinh")
+    return {k: dict(v) for k, v in _DEFAULTS.items()}
+
+_CFG = _load_hsv_config()
+
 # ==================== CAU HINH MAU HSV ====================
 # HSV: H(0-179), S(0-255), V(0-255) trong OpenCV
+# (Cac bien nay duoc cap nhat tu _CFG, co the ghi de bang calibration)
 
 # Ao trang: Sac bao hoa thap (it mau), Do sang cao
-WHITE_S_MAX = 60    # Saturation <= 60: gan nhu trang/xam sang
-WHITE_V_MIN = 160   # Value >= 160: du sang (tranh mau xam toi)
+WHITE_S_MAX = _CFG["white"]["s_max"]    # Saturation <= 60: gan nhu trang/xam sang
+WHITE_V_MIN = _CFG["white"]["v_min"]    # Value >= 160: du sang (tranh mau xam toi)
 
 # Ao xanh duong (doan vien): Hue trong vung xanh duong
-BLUE_H_MIN  = 95    # Hue bat dau vung xanh duong
-BLUE_H_MAX  = 135   # Hue ket thuc vung xanh duong
-BLUE_S_MIN  = 60    # Du bao hoa (khong phai xam)
-BLUE_V_MIN  = 40    # Khong qua toi
+BLUE_H_MIN  = _CFG["blue"]["h_min"]     # Hue bat dau vung xanh duong
+BLUE_H_MAX  = _CFG["blue"]["h_max"]     # Hue ket thuc vung xanh duong
+BLUE_S_MIN  = _CFG["blue"]["s_min"]     # Du bao hoa (khong phai xam)
+BLUE_V_MIN  = _CFG["blue"]["v_min"]     # Khong qua toi
 
 # Quan toi mau: Do sang (Value) thap
-DARK_V_MAX  = 100   # Value <= 100: duoc coi la toi mau
-DARK_RATIO_MIN = 0.45  # It nhat 45% diem anh trong vung quan phai la toi mau
+DARK_V_MAX      = _CFG["dark_pants"]["v_max"]       # Value <= 100: duoc coi la toi mau
+DARK_RATIO_MIN  = _CFG["dark_pants"]["ratio_min"]   # It nhat 45% diem anh phai la toi mau
 
 # Nguong do chinh xac toi thieu de chap nhan ket qua
 MIN_PIXEL_RATIO = 0.30  # 30% pixels phai khop moi duoc tin tuong

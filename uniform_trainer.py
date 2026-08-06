@@ -1,15 +1,19 @@
 """
 =============================================================
-  BƯỚC 2: TRAINING MODEL AI NHẬN DIỆN TRANG PHỤC
+  BUỜC 2: TRAINING MODEL AI NHẬN DIỆN TRANG PHỤC
   uniform_trainer.py
 
   Sử dụng Transfer Learning với MobileNetV2 (của Google)
   Model nhẹ, chạy được tốt trên Raspberry Pi 4
 
-  Chạy lệnh: python uniform_trainer.py
-  Output   : data/uniform_model.tflite  (dùng trên Raspberry Pi)
-             data/uniform_model.h5      (backup, dùng để train thêm)
-             data/uniform_labels.json   (nhãn tương ứng)
+  PHÂN LOẠI 2 NHÃN:
+    - trang_phuc_dan_toc : Trang phục dân tộc (Đúng vào Thứ 2)
+    - other             : Không phải dân tộc → UNCLEAR → Camera chụp
+
+  CHẠY LỆNH: python uniform_trainer.py
+  OUTPUT   : data/uniform_model_v2.tflite  (dùng trên Raspberry Pi)
+             data/uniform_model_v2.h5      (backup, dùng để train thêm)
+             data/uniform_labels_v2.json   (nhãn tương ứng)
 =============================================================
 """
 
@@ -22,10 +26,10 @@ from pathlib import Path
 
 # ==================== CẤU HÌNH ====================
 BASE_DIR        = Path(__file__).parent
-DATASET_DIR     = BASE_DIR / "data" / "uniform_dataset"
-MODEL_H5_PATH   = BASE_DIR / "data" / "uniform_model.h5"
-MODEL_TFLITE    = BASE_DIR / "data" / "uniform_model.tflite"
-LABELS_PATH     = BASE_DIR / "data" / "uniform_labels.json"
+DATASET_DIR     = BASE_DIR / "data" / "uniform_dataset_v2"   # Dataset mới 2 nhãn
+MODEL_H5_PATH   = BASE_DIR / "data" / "uniform_model_v2.h5"
+MODEL_TFLITE    = BASE_DIR / "data" / "uniform_model_v2.tflite"
+LABELS_PATH     = BASE_DIR / "data" / "uniform_labels_v2.json"
 
 IMAGE_SIZE      = (224, 224)
 BATCH_SIZE      = 16   # Giảm xuống 16 nếu RAM máy tính thấp
@@ -39,7 +43,7 @@ def check_dataset():
     """Kiểm tra dataset trước khi training."""
     train_dir = DATASET_DIR / "train"
     if not train_dir.exists():
-        print("[ERROR] Chưa có dataset! Hãy chạy: python uniform_dataset_prep.py")
+        print("[ERROR] Chưa có dataset! Hãy chạy: python step1_data_prep_v2.py")
         return None, None
     
     classes = sorted([d.name for d in train_dir.iterdir() if d.is_dir()])
@@ -47,6 +51,16 @@ def check_dataset():
         print("[ERROR] Không tìm thấy nhãn nào trong dataset/train/")
         return None, None
     
+    # Kiểm tra các nhãn bắt buộc
+    REQUIRED = {"trang_phuc_dan_toc", "other"}
+    missing  = REQUIRED - set(classes)
+    if missing:
+        print(f"[WARN] Thiếu nhãn: {missing}")
+        print(f"       Hãy chạy lại: python step1_data_prep_v2.py")
+    else:
+        print(f"[OK] Model sẻ phân loại 2 nhãn: 'trang_phuc_dan_toc' và 'other'")
+        print(f"     'other' → UNCLEAR → Camera chụp + upload cloud")
+
     print(f"[INFO] Tìm thấy {len(classes)} nhãn: {classes}")
     return classes, len(classes)
 
@@ -124,13 +138,14 @@ def train():
     import tensorflow as tf
 
     print("=" * 60)
-    print("  TRAINING MODEL NHẬN DIỆN TRANG PHỤC HỌC SINH")
+    print("  TRAINING MODEL NHẬN DIỆN TRANG PHỤC HỌC SINH (v2)")
+    print("  Nhãn: [trang_phuc_dan_toc] vs [other]")
     print("=" * 60)
     
     # Kiểm tra GPU
     gpus = tf.config.list_physical_devices("GPU")
     if gpus:
-        print(f"[INFO] Phát hiện GPU: {gpus[0].name} - Training sẽ nhanh hơn nhiều!")
+        print(f"[INFO] Phát hiện GPU: {gpus[0].name} - Training sẻ nhanh hơn nhiều!")
     else:
         print("[INFO] Không có GPU - Training bằng CPU (chậm hơn, nhưng vẫn OK)")
 
@@ -148,6 +163,24 @@ def train():
     # Tạo data generators
     train_gen, val_gen = create_data_generators()
     print(f"[INFO] Train: {train_gen.samples} ảnh | Val: {val_gen.samples} ảnh")
+
+    # ── Tính class_weight để xử lý mất cân bằng nhãn ──
+    # Ví dụ: dan_toc=645 ảnh, other=105 ảnh
+    # → class_weight sẻ tăng trọng số nhãn ít ảnh (other)
+    from sklearn.utils.class_weight import compute_class_weight
+    try:
+        y_train = train_gen.classes
+        class_weights_arr = compute_class_weight(
+            class_weight="balanced",
+            classes=np.unique(y_train),
+            y=y_train
+        )
+        class_weight_dict = dict(enumerate(class_weights_arr))
+        print(f"[INFO] class_weight: {class_weight_dict}")
+        print(f"       (Nhãn ít ảnh sẽ có trọng số cao hơn → bù mất cân bằng)")
+    except Exception as e:
+        print(f"[WARN] Không tính được class_weight ({e}) — dùng None")
+        class_weight_dict = None
 
     # Xây dựng model
     model, base_model = build_model(num_classes)
@@ -186,6 +219,7 @@ def train():
         validation_data = val_gen,
         epochs          = EPOCHS_FROZEN,
         callbacks       = callbacks_phase1,
+        class_weight    = class_weight_dict,   # Bù mất cân bằng
         verbose         = 1
     )
 
@@ -227,6 +261,7 @@ def train():
         validation_data = val_gen,
         epochs          = EPOCHS_FINETUNE,
         callbacks       = callbacks_phase2,
+        class_weight    = class_weight_dict,   # Bù mất cân bằng
         verbose         = 1
     )
 
@@ -254,10 +289,14 @@ def train():
     print("  TRAINING HOÀN THÀNH!")
     print("=" * 60)
     print(f"  Độ chính xác cuối cùng : {best_acc_overall*100:.1f}%")
+    print(f"  Nhãn phân loại      : {classes}")
     print(f"  Model H5 (backup)      : {MODEL_H5_PATH}")
     print(f"  Model TFLite (Pi4)     : {MODEL_TFLITE} ({tflite_size:.1f} MB)")
     print(f"  File nhãn              : {LABELS_PATH}")
     print("=" * 60)
+    print("\n[NEXT] Cập nhật MODEL_PATH trong uniform_checker.py:")
+    print(f"       MODEL_PATH = '{MODEL_TFLITE}'")
+    print(f"       LABELS_PATH = '{LABELS_PATH}'")
     print("\n[NEXT] Chạy bước tiếp theo: python uniform_checker.py --test")
 
 
