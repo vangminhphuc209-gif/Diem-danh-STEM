@@ -8,8 +8,10 @@
   - Nhận diện trang phục học sinh qua camera realtime
   - Tự động biết hôm nay là thứ mấy → quy định trang phục gì
   - Thứ 7, Chủ nhật: Không yêu cầu trang phục
-  - Trả về: Đúng / Sai / Không yêu cầu
-  
+  - Trả về: Đúng / Sai / Không rõ (UNCLEAR) / Không yêu cầu
+
+  UNCLEAR: Trang phục không xác định được → camera chụp → upload cloud
+
   Dùng:
     Import vào main.py  : from uniform_checker import UniformChecker
     Chạy test camera    : python uniform_checker.py --test
@@ -26,8 +28,8 @@ from enum import Enum
 
 # ==================== CẤU HÌNH ====================
 BASE_DIR      = Path(__file__).parent
-MODEL_PATH    = BASE_DIR / "data" / "uniform_model.tflite"
-LABELS_PATH   = BASE_DIR / "data" / "uniform_labels.json"
+MODEL_PATH    = BASE_DIR / "data" / "uniform_model_v2.tflite"   # v2: 2 nhãn [dan_toc / other]
+LABELS_PATH   = BASE_DIR / "data" / "uniform_labels_v2.json"    # v2: nhãn tương ứng
 IMAGE_SIZE    = (224, 224)
 CONFIDENCE_THRESHOLD = 0.55  # Độ tự tin tối thiểu, thấp hơn = "Không rõ"
 
@@ -71,12 +73,24 @@ COLOR_UNCLEAR = (0, 165, 255)   # Cam (không chắc chắn)
 class UniformChecker:
     """Module nhận diện trang phục tích hợp vào hệ thống điểm danh."""
 
-    def __init__(self):
-        self.interpreter  = None
-        self.labels       = []
-        self.input_details  = None
-        self.output_details = None
+    def __init__(self, use_person_detector: bool = True):
+        self.interpreter     = None
+        self.labels          = []
+        self.input_details   = None
+        self.output_details  = None
         self._load_model()
+
+        # ── HOG Person Detector ──
+        self.person_detector = None
+        if use_person_detector:
+            try:
+                from person_detector import PersonDetector
+                self.person_detector = PersonDetector(use_face_fallback=True, verbose=False)
+                print("[OK] HOG Person Detector đã sẵn sàng.")
+            except ImportError:
+                print("[WARN] Không tìm thấy person_detector.py — bỏ qua HOG detection.")
+            except Exception as e:
+                print(f"[WARN] PersonDetector lỗi: {e}")
 
     def _load_model(self):
         """Nạp model TFLite vào bộ nhớ."""
@@ -111,6 +125,33 @@ class UniformChecker:
         return self.interpreter is not None
 
     # ------------------------------------------------------------------
+    # PHÁT HIỆN NGƯỜI — HOG BODY BOX
+    # ------------------------------------------------------------------
+    def get_body_boxes(self, frame: np.ndarray) -> list[dict]:
+        """
+        Phát hiện tất cả người trong frame dùng HOG detector.
+
+        Returns:
+            List[dict] — mỗi phần tử là:
+            {
+                "body_box"  : (x, y, w, h),
+                "shirt_box" : (x, y, w, h),
+                "pants_box" : (x, y, w, h),
+                "source"    : "hog" | "face" | "full_frame"
+            }
+        """
+        if self.person_detector is not None:
+            return self.person_detector.detect(frame)
+        # Fallback: dùng toàn bộ frame
+        h, w = frame.shape[:2]
+        return [{
+            "body_box"  : (0, 0, w, h),
+            "shirt_box" : (0, int(h * 0.12), w, int(h * 0.40)),
+            "pants_box" : (0, int(h * 0.52), w, int(h * 0.38)),
+            "source"    : "full_frame",
+        }]
+
+    # ------------------------------------------------------------------
     # LOGIC QUY ĐỊNH THEO NGÀY
     # ------------------------------------------------------------------
     @staticmethod
@@ -128,20 +169,29 @@ class UniformChecker:
     # ------------------------------------------------------------------
     # NHẬN DIỆN TRANG PHỤC
     # ------------------------------------------------------------------
-    def predict(self, frame: np.ndarray, body_box: tuple = None) -> dict:
+    def predict(self, frame: np.ndarray, body_box: tuple = None,
+                weekday_override: int = None) -> dict:
         """
         Nhan dien trang phuc trong anh.
-        - Thu 2: Dung TFLite AI (trang phuc dan toc)
-        - Thu 3, 5: Dung Color Analyzer (ao trang + quan toi)
+
+        Luong xu ly:
+        - Thu 2: TFLite AI → [trang_phuc_dan_toc | other]
+            + other → UNCLEAR → camera chup + upload cloud
+        - Thu 3, 5: Color Analyzer (ao trang + quan toi)
         - Thu 4: SKIP (tu do co co - khong check tu dong)
-        - Thu 6: Dung Color Analyzer (ao xanh + quan toi)
+        - Thu 6: Color Analyzer (ao xanh + quan toi)
         - Thu 7, CN: SKIP (nghi)
+
+        Args:
+            frame           : Frame BGR tu camera
+            body_box        : (x,y,w,h) override. None = tu dong dung HOG
+            weekday_override: Override thu trong tuan (dung khi test)
         """
         from uniform_color_analyzer import UniformColorAnalyzer
 
-        today_rule = self.get_today_rule()
+        today_rule = self.get_today_rule(weekday_override)
         rule_text  = RULE_DISPLAY[today_rule]
-        weekday    = datetime.now().weekday()
+        weekday    = weekday_override if weekday_override is not None else datetime.now().weekday()
 
         # ---- NGAY NGHI -> SKIP ----
         if today_rule == UniformRule.NGHI:
@@ -152,6 +202,14 @@ class UniformChecker:
         if today_rule == UniformRule.TU_DO_CO_CO:
             return self._result("tu_do", 1.0, True, rule_text, "SKIP",
                                 "Thu 4: Tu do - Khong kiem tra tu dong")
+
+        # ---- XAC DINH BODY BOX (HOG hoac override) ----
+        if body_box is None:
+            # Dung HOG person detector tu dong
+            detections = self.get_body_boxes(frame)
+            # Lay detection dau tien (lon nhat / chinh xac nhat)
+            detected   = detections[0] if detections else None
+            body_box   = detected["body_box"] if detected else None
 
         # ---- THU 3, 5, 6: DUNG COLOR ANALYZER ----
         if today_rule in (UniformRule.AO_TRANG, UniformRule.AO_DOAN):
@@ -170,6 +228,7 @@ class UniformChecker:
                 "status"       : status,
                 "message"      : msg,
                 "color_result" : color_result,   # Du lieu goc de draw_result dung
+                "body_box"     : body_box,
             }
 
         # ---- THU 2: DUNG TFLITE AI (trang phuc dan toc) ----
@@ -177,10 +236,10 @@ class UniformChecker:
             return self._result("unknown", 0.0, False, rule_text, "NO_MODEL",
                                 "Model chua duoc training")
 
-        # Cat vung than nguoi
+        # Cat vung than nguoi cho AI
         if body_box is not None:
             x, y, w, h = body_box
-            y_start = max(0, y + int(h * 0.15))
+            y_start = max(0, y + int(h * 0.12))
             y_end   = min(frame.shape[0], y + int(h * 0.80))
             region  = frame[y_start:y_end, x:x + w]
         else:
@@ -204,10 +263,23 @@ class UniformChecker:
         confidence      = float(np.max(output))
         predicted_label = self.labels[predicted_idx] if predicted_idx < len(self.labels) else "unknown"
 
+        # ── Confidence thap → UNCLEAR ──
         if confidence < CONFIDENCE_THRESHOLD:
-            return self._result(predicted_label, confidence, False, rule_text, "UNCLEAR",
-                                f"Khong ro trang phuc ({confidence*100:.0f}%)")
+            return self._result(
+                predicted_label, confidence, False, rule_text, "UNCLEAR",
+                f"Khong ro trang phuc ({confidence*100:.0f}%) → Se chup anh kiem tra"
+            )
 
+        # ── Nhan "other" → UNCLEAR (trang phuc khong phai dan toc) ──
+        # Hoc sinh co the dang mac trang phuc tan tien chua trong dataset
+        # → UNCLEAR de nguoi giam sat xem xet, camera se chup lai
+        if predicted_label == "other":
+            return self._result(
+                "other", confidence, False, rule_text, "UNCLEAR",
+                f"Trang phuc khong xac dinh ({confidence*100:.0f}%) → Se chup anh kiem tra"
+            )
+
+        # ── Nhan "trang_phuc_dan_toc" → OK ──
         is_correct = self._check_rule(predicted_label, today_rule)
         if is_correct:
             msg    = f"OK: Trang phuc dan toc ({confidence*100:.0f}%)"
@@ -216,8 +288,10 @@ class UniformChecker:
             msg    = f"SAI: Can mac trang phuc dan toc ({confidence*100:.0f}%)"
             status = "FAIL"
 
-        return self._result(predicted_label, confidence, is_correct,
-                            rule_text, status, msg)
+        result = self._result(predicted_label, confidence, is_correct,
+                              rule_text, status, msg)
+        result["body_box"] = body_box
+        return result
 
 
     def _check_rule(self, predicted_label: str, rule: UniformRule) -> bool:

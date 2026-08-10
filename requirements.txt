@@ -1,25 +1,71 @@
-# ── Thu vien can cai (pip install -r requirements.txt) -----------------------
+# ═══════════════════════════════════════════════════════════════════════════════
+#  REQUIREMENTS.TXT — Hệ Thống Điểm Danh Thông Minh v4.0
+#
+#  Cài đặt tất cả:
+#      pip install -r requirements.txt
+#
+#  ⚠️  QUAN TRỌNG — Python 32-bit (win32) trên Windows:
+#      Máy này đang chạy Python 3.12 32-bit.
+#      4 thư viện bên dưới (có ký hiệu *) KHÔNG cài được trên Python 32-bit:
+#        - tensorflow, scikit-learn, matplotlib, face-recognition
+#
+#      Giải pháp: Cài lại Python 64-bit (amd64) → TẢI TẠI:
+#      https://www.python.org/downloads/  (chọn "Windows installer (64-bit)")
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# Camera va QR
+# ───────────────────────────────────────────────────────────────────────────────
+#  ✅ ĐÃ CÀI THÀNH CÔNG (tương thích Python 3.12 win32)
+# ───────────────────────────────────────────────────────────────────────────────
+
+# Xử lý ảnh & Camera
 opencv-python>=4.8.0
-opencv-contrib-python>=4.8.0   # Haar Cascade extra models
+opencv-contrib-python>=4.8.0       # Haar Cascade extra + HOG person detector
+
+# Quét mã QR
 pyzbar>=0.1.9
 
-# Google Sheets
-gspread>=6.0.0
-oauth2client>=4.1.3
-
-# Tao the QR
+# Tạo thẻ QR & xử lý ảnh
 qrcode[pil]>=7.4.2
 Pillow>=10.0.0
 
-# Nhan dien khuon mat (can dlib + cmake)
-# Windows: pip install cmake dlib face_recognition
-# Linux  : pip install cmake dlib face_recognition
-face-recognition>=1.3.0
+# Google Sheets API
+gspread>=6.0.0
+oauth2client>=4.1.3
 
-# So hoc
+# Web API Server (api_server.py)
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# Số học
 numpy>=1.24.0
 
-# [Tuy chon] Xuat PDF the QR
+
+# ───────────────────────────────────────────────────────────────────────────────
+#  ⚠️  CẦN PYTHON 64-BIT ĐỂ CÀI (chưa cài được trên máy này)
+# ───────────────────────────────────────────────────────────────────────────────
+
+# [*] Nhận diện khuôn mặt
+# Cài theo thứ tự: cmake → dlib → face-recognition
+#   pip install cmake
+#   pip install dlib
+#   pip install face-recognition
+face-recognition>=1.3.0
+
+# [*] AI Trang phục — Training model MobileNetV2 → TFLite
+# Chọn MỘT trong hai tùy môi trường deploy:
+tensorflow>=2.13.0                 # Dùng khi TRAINING trên PC/laptop
+# tflite-runtime>=2.13.0           # Dùng thay tensorflow khi DEPLOY Raspberry Pi
+
+# [*] Cân bằng nhãn khi training
+scikit-learn>=1.3.0
+
+# [*] Biểu đồ / Hiển thị ảnh mẫu (dùng trong step1_dataset_audit.py --show-samples)
+matplotlib>=3.7.0
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+#  🔧 TÙY CHỌN
+# ───────────────────────────────────────────────────────────────────────────────
+
+# Xuất PDF thẻ QR (generate_qr.py --pdf)
 # reportlab>=4.0.0
