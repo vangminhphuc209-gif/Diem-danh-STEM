@@ -1,8 +1,8 @@
 {
-  "timestamp": "2026-08-06T13:18:03.564909",
-  "output_dir": "C:\\Users\\Windows\\Desktop\\Diem-danh-STEM\\data\\uniform_dataset_v2",
+  "timestamp": "2026-08-09T23:50:06.303725",
+  "output_dir": "C:\\Users\\admin\\Desktop\\Diem-danh-STEM\\data\\uniform_dataset_v2",
   "train_ratio": 0.8,
-  "aug_factor_other": 15,
+  "aug_factor_other": 20,
   "aug_factor_dantoc": 3,
   "labels": [
     "trang_phuc_dan_toc",
@@ -18,15 +18,15 @@
       "total": 715
     },
     "other": {
-      "original": 7,
-      "train_orig": 5,
-      "augmented": 75,
-      "train_total": 80,
-      "val": 2,
-      "total": 82
+      "original": 13,
+      "train_orig": 10,
+      "augmented": 200,
+      "train_total": 210,
+      "val": 3,
+      "total": 213
     }
   },
-  "total_train": 752,
-  "total_val": 45,
-  "elapsed_seconds": 2.586793
+  "total_train": 882,
+  "total_val": 46,
+  "elapsed_seconds": 8.978673
 }
