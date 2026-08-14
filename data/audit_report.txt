@@ -1,7 +1,7 @@
 ======================================================================
   KIỂM KÊ DATASET — HỆ THỐNG NHẬN DIỆN TRANG PHỤC HỌC SINH
-  Thời điểm: 2026-08-06 13:17:50
-  Nguồn    : C:\Users\Windows\Desktop\Diem-danh-STEM\data\uniform_picdemo
+  Thời điểm: 2026-08-14 21:50:32
+  Nguồn    : C:\Users\ADMIN\Desktop\Diem danh STEM\data\uniform_picdemo
 ======================================================================
 
 📁 THỐNG KÊ TỪNG NHÃN CHÍNH
@@ -12,7 +12,7 @@
      Tổng   : 211 file | Hợp lệ: 211 | Lỗi: 0
      ██████████████████████████████ 211 ảnh
 
-     📊 Phân bổ theo dân tộc (49 nhóm):
+     📊 Phân bổ theo dân tộc (50 nhóm):
         ████████████████████  22  trang_phuc_nu/01_kinh_nu
         █████████████░░░░░░░  15  trang_phuc_nu/06_hmong_nu
         █████████████░░░░░░░  15  trang_phuc_nu/08_dao_nu
@@ -23,7 +23,7 @@
         █████████░░░░░░░░░░░  10  trang_phuc_nu/05_nguoi_hoa
         ████████░░░░░░░░░░░░   9  trang_phuc_nam/08_dao_nam
         ██████░░░░░░░░░░░░░░   7  trang_phuc_nam/05_nguoi_hoa
-        ... và 39 nhóm khác (86 ảnh)
+        ... và 40 nhóm khác (86 ảnh)
 
   🚨 [ao_trang]
      Mô tả  : Áo trắng (Thứ 3, 5 — Color Analyzer)
