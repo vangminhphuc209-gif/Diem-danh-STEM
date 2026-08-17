@@ -490,10 +490,24 @@ def run():
     uniform_unclear_count = 0
     last_uniform_result  = None   # Ket qua gan nhat de ve lien tuc giua cac lan check
 
-    # [v4] Danh tinh hoc sinh dang "hien dien" gan nhat truoc camera —
-    # dung de gan ket qua trang phuc voi dung hoc sinh thay vi "???"
-    current_identity = {"sid": None, "name": None, "ts": 0.0}
-    IDENTITY_TIMEOUT  = 12.0   # Giay — qua thoi gian nay ma khong thay lai mat -> quay ve UNKNOWN
+    # [fix] Truoc day dung 1 bien current_identity = "mat nhan dien gan nhat"
+    # de gan cho MOI ket qua trang phuc -> sai neu 2 hoc sinh dung gan nhau
+    # (gan nham nguoi). Nay giu 1 danh sach ngan cac mat da nhan duoc kem
+    # toa do, va CHI gan danh tinh cho ket qua trang phuc neu tam khuon mat
+    # do thuc su nam trong (hoac gan) body_box dang duoc cham diem.
+    recent_faces     = []   # [{"sid","name","location":(top,right,bottom,left),"ts"}]
+    IDENTITY_TIMEOUT = 5.0  # Giay — mat nhan dien qua cu se khong con duoc doi chieu
+
+    def _face_center_in_box(location, box, margin_ratio: float = 0.35) -> bool:
+        """[fix] Kiem tra tam khuon mat co nam trong body_box (co bien do
+        margin_ratio de bu sai so uoc luong cua HOG/fallback) hay khong."""
+        if box is None:
+            return False
+        top, right, bottom, left = location
+        cx, cy = (left + right) / 2.0, (top + bottom) / 2.0
+        x, y, w, h = box
+        mx, my = w * margin_ratio, h * margin_ratio
+        return (x - mx) <= cx <= (x + w + mx) and (y - my) <= cy <= (y + h + my)
 
     frame_count    = 0
     cam_fail_count = 0
@@ -533,7 +547,6 @@ def run():
         # BUOC 1: QUET QR CODE
         # =====================================================================
         decoded = pyzbar.decode(frame)
-        batch   = []
 
         for obj in decoded:
             raw = obj.data.decode("utf-8", errors="replace").strip()
@@ -575,7 +588,8 @@ def run():
             banner_color = (0, 200, 80) if status == "Vao" else (0, 160, 255)
             banner_end   = now + VERIFY_WINDOW
 
-        # batch duoc flush SAU khi xac minh (xem phan XAC MINH ben duoi)
+        # Du lieu the QR duoc flush SAU khi xac minh khuon mat thanh cong
+        # (xem phan XAC MINH ben duoi, dung pending_verify[...]["batch_row"])
 
         # =====================================================================
         # BUOC 2A: HAAR CASCADE — phat hien mat nhanh moi frame [v1-mod]
@@ -589,14 +603,17 @@ def run():
                 and frame_count % FACE_SKIP_FRAMES == 0):
             face_results = face_eng.recognize(frame)
 
-            # [v4] Cap nhat danh tinh "hien dien" gan nhat cho module trang phuc.
-            # Uu tien hoc sinh da biet (co sid), bo qua nguoi la.
+            # [fix] Ghi lai TAT CA khuon mat da biet (kem toa do) thay vi chi
+            # nho "nguoi gan nhat" — de sau nay doi chieu chinh xac voi
+            # body_box thay vi doan mo.
             for fr in face_results:
                 if fr.get("student_id") and fr.get("status") != "stranger":
-                    current_identity = {
-                        "sid": fr["student_id"], "name": fr["name"], "ts": now
-                    }
-                    break
+                    recent_faces.append({
+                        "sid": fr["student_id"], "name": fr["name"],
+                        "location": fr["location"], "ts": now,
+                    })
+            if recent_faces:
+                recent_faces = [f for f in recent_faces if now - f["ts"] <= IDENTITY_TIMEOUT]
 
             grace_ids = {
                 sid for sid, t in recently_scan.items()
@@ -723,11 +740,16 @@ def run():
                 last_uniform_result = uni_result
                 u_status = uni_result["status"]
 
-                # Het han danh tinh -> quay ve UNKNOWN de khong gan nham nguoi
-                if now - current_identity["ts"] > IDENTITY_TIMEOUT:
-                    current_identity = {"sid": None, "name": None, "ts": 0.0}
-                sid_u  = current_identity["sid"] or "UNKNOWN"
-                name_u = current_identity["name"] or "Chua xac dinh danh tinh"
+                # [fix] Chi gan danh tinh neu co khuon mat THUC SU nam trong
+                # body_box dang duoc cham trang phuc (tranh gan nham khi 2
+                # hoc sinh dung gan nhau trong khung hinh).
+                recent_faces = [f for f in recent_faces if now - f["ts"] <= IDENTITY_TIMEOUT]
+                matched = next(
+                    (f for f in recent_faces if _face_center_in_box(f["location"], body_box)),
+                    None
+                )
+                sid_u  = matched["sid"]  if matched else "UNKNOWN"
+                name_u = matched["name"] if matched else "Chua xac dinh danh tinh"
 
                 if u_status == "FAIL":
                     key = f"UNIFORM_FAIL_{sid_u}"

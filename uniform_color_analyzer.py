@@ -136,27 +136,61 @@ class UniformColorAnalyzer:
         # Cat vung than nguoi
         body_region = self._crop_body(frame, body_box)
 
+        # [fix] Bu sang tong the (lighting compensation) truoc khi phan tich.
+        # Nguong HSV trong config.py/hsv_config.json duoc calibrate theo 1
+        # dieu kien anh sang/camera cu the -> neu doi phong hoc/camera khac,
+        # do sang tong the lech di se lam sai lech ket qua "trang" hay "toi".
+        # Tinh 1 he so bu (v_gain) tu chinh vung than nguoi trong frame HIEN
+        # TAI, ap dung DONG NHAT cho ca vung ao va vung quan de giu nguyen
+        # do tuong phan tuong doi giua ao/quan (khong dung equalizeHist rieng
+        # tung vung vi se "xoa" luon do tuong phan can phan biet).
+        # Day la giai phap giam nhay cam anh sang o muc vua phai — van
+        # KHUYEN NGHI chay lai step1_hsv_calibrator.py neu doi phong/camera
+        # co dieu kien anh sang qua khac biet.
+        v_gain = self._compute_lighting_gain(body_region)
+
         # Lay vung ao va quan
         shirt_region = self._get_zone(body_region, *self.SHIRT_ZONE)
         pants_region = self._get_zone(body_region, *self.PANTS_ZONE)
 
         # Phan tich mau
-        shirt_analysis = self._analyze_shirt_region(shirt_region)
-        pants_analysis = self._analyze_pants_darkness(pants_region)
+        shirt_analysis = self._analyze_shirt_region(shirt_region, v_gain)
+        pants_analysis = self._analyze_pants_darkness(pants_region, v_gain)
 
         # Ap dung quy dinh theo ngay
         return self._apply_rule(weekday, shirt_analysis, pants_analysis)
 
+    @staticmethod
+    def _compute_lighting_gain(body_region: np.ndarray,
+                                target_median_v: float = 140.0,
+                                gain_min: float = 0.5,
+                                gain_max: float = 2.0) -> float:
+        """[fix] Tinh he so bu do sang dua tren trung vi kenh V cua toan bo
+        vung than nguoi. Gioi han gain trong [gain_min, gain_max] de tranh
+        khuech dai nhieu qua muc trong dieu kien qua toi/qua sang."""
+        if body_region is None or body_region.size == 0:
+            return 1.0
+        hsv = cv2.cvtColor(body_region, cv2.COLOR_BGR2HSV)
+        median_v = float(np.median(hsv[:, :, 2]))
+        if median_v < 1:
+            return 1.0
+        gain = target_median_v / median_v
+        return float(np.clip(gain, gain_min, gain_max))
+
     # ----------------------------------------------------------------
     # CAC HAM PHAN TICH MAU
     # ----------------------------------------------------------------
-    def _analyze_shirt_region(self, region: np.ndarray) -> dict:
+    def _analyze_shirt_region(self, region: np.ndarray, v_gain: float = 1.0) -> dict:
         """Phan tich mau ao: trang, xanh duong, hay khac."""
         if region is None or region.size == 0:
             return {"detected": "unknown", "white_ratio": 0.0,
                     "blue_ratio": 0.0, "dominant_hsv": (0, 0, 0)}
 
         hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
+        # [fix] Ap dung he so bu sang truoc khi so nguong
+        if v_gain != 1.0:
+            v_ch = hsv[:, :, 2].astype(np.float32) * v_gain
+            hsv[:, :, 2] = np.clip(v_ch, 0, 255).astype(np.uint8)
         total_pixels = hsv.shape[0] * hsv.shape[1]
 
         # --- Kiem tra MAU TRANG ---
@@ -196,12 +230,16 @@ class UniformColorAnalyzer:
             "dominant_hsv": tuple(int(x) for x in mean_hsv),
         }
 
-    def _analyze_pants_darkness(self, region: np.ndarray) -> dict:
+    def _analyze_pants_darkness(self, region: np.ndarray, v_gain: float = 1.0) -> dict:
         """Kiem tra quan co toi mau khong."""
         if region is None or region.size == 0:
             return {"is_dark": False, "dark_ratio": 0.0, "mean_value": 255}
 
         hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
+        # [fix] Ap dung cung he so bu sang nhu vung ao de giu tuong quan dung
+        if v_gain != 1.0:
+            v_ch = hsv[:, :, 2].astype(np.float32) * v_gain
+            hsv[:, :, 2] = np.clip(v_ch, 0, 255).astype(np.uint8)
         total_pixels = hsv.shape[0] * hsv.shape[1]
 
         # Toi mau: Value thap

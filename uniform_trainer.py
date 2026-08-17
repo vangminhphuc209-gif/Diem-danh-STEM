@@ -294,6 +294,24 @@ def train():
     print(f"  Model TFLite (Pi4)     : {MODEL_TFLITE} ({tflite_size:.1f} MB)")
     print(f"  File nhãn              : {LABELS_PATH}")
     print("=" * 60)
+
+    # [fix] Canh bao do tin cay khi tap validation qua nho — dac biet
+    # quan trong khi do chinh xac bao cao gan 100% (dau hieu kinh dien
+    # cua overfitting / tap val khong du dai dien, KHONG phai model
+    # "hoan hao").
+    MIN_RELIABLE_VAL_SAMPLES = 100
+    if val_gen.samples < MIN_RELIABLE_VAL_SAMPLES:
+        print("\n  ⚠️  CẢNH BÁO ĐỘ TIN CẬY:")
+        print(f"     Tập validation chỉ có {val_gen.samples} ảnh"
+              f" (khuyến nghị tối thiểu {MIN_RELIABLE_VAL_SAMPLES}+).")
+        if best_acc_overall >= 0.97:
+            print(f"     Độ chính xác {best_acc_overall*100:.1f}% với tập val nhỏ như vậy")
+            print("     RẤT CÓ THỂ là dấu hiệu overfitting hoặc tập val chưa đại diện")
+            print("     đủ tình huống thực tế (góc quay, ánh sáng, nền khác nhau),")
+            print("     KHÔNG nên xem đây là độ chính xác thực tế khi triển khai.")
+        print("     → Nên thu thập thêm ảnh thực tế (đặc biệt nhãn ít ảnh)")
+        print("       trước khi tin tưởng triển khai model này diện rộng.")
+
     print("\n[NEXT] Cập nhật MODEL_PATH trong uniform_checker.py:")
     print(f"       MODEL_PATH = '{MODEL_TFLITE}'")
     print(f"       LABELS_PATH = '{LABELS_PATH}'")

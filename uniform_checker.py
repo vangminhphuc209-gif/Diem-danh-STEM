@@ -80,6 +80,12 @@ class UniformChecker:
         self.output_details  = None
         self._load_model()
 
+        # [fix] Khoi tao UniformColorAnalyzer 1 LAN duy nhat thay vi moi
+        # lan goi predict() — truoc day tao moi instance moi 15 frame,
+        # lang phi tai nguyen khong can thiet.
+        from uniform_color_analyzer import UniformColorAnalyzer
+        self.color_analyzer = UniformColorAnalyzer()
+
         # ── HOG Person Detector ──
         self.person_detector = None
         if use_person_detector:
@@ -187,8 +193,6 @@ class UniformChecker:
             body_box        : (x,y,w,h) override. None = tu dong dung HOG
             weekday_override: Override thu trong tuan (dung khi test)
         """
-        from uniform_color_analyzer import UniformColorAnalyzer
-
         today_rule = self.get_today_rule(weekday_override)
         rule_text  = RULE_DISPLAY[today_rule]
         weekday    = weekday_override if weekday_override is not None else datetime.now().weekday()
@@ -213,8 +217,7 @@ class UniformChecker:
 
         # ---- THU 3, 5, 6: DUNG COLOR ANALYZER ----
         if today_rule in (UniformRule.AO_TRANG, UniformRule.AO_DOAN):
-            color_analyzer = UniformColorAnalyzer()
-            color_result   = color_analyzer.check(frame, body_box, weekday)
+            color_result = self.color_analyzer.check(frame, body_box, weekday)
 
             is_correct = color_result.status == "OK"
             status     = color_result.status
