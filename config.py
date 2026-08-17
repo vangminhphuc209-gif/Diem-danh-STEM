@@ -51,6 +51,11 @@ HAAR_SCALE_FACTOR  = 1.05
 HAAR_MIN_NEIGHBORS = 4
 HAAR_MIN_SIZE      = (40, 40)   # pixel
 
+# ── [v4] Kiem tra trang phuc (uniform_checker.py) -----------------------------
+UNIFORM_CHECK_ENABLE   = True   # Bat/tat kiem tra trang phuc tich hop
+UNIFORM_CHECK_INTERVAL = 15     # Chi chay HOG+AI moi N frame (giam tai CPU)
+UNIFORM_VIOLATION_COOLDOWN = 90 # Giay — tranh chup lap lai lien tuc cung 1 nguoi
+
 # ── Mau sac (BGR) ------------------------------------------------------------
 COLOR_SUCCESS       = (0, 220, 80)
 COLOR_ERROR         = (0, 0, 220)

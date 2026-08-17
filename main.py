@@ -1,7 +1,8 @@
 """
 =================================================
   HE THONG DIEM DANH QR CODE + NHAN DIEN MAT
-  v3.0 — MERGE v1-modified + v2
+       + KIEM TRA TRANG PHUC TU DONG
+  v4.0 — MERGE v1-modified + v2 + Uniform Module
 =================================================
 TU V1-MODIFIED (tinh nang ban them vao):
   [+] FaceEngine 2 lop: Haar nhanh moi frame + face_recognition dinh ky
@@ -20,6 +21,23 @@ TU V2 (bug fix + tinh nang v2):
   [+] draw_banner dep voi fade-out
   [+] draw_clock, draw_stats tren camera
   [+] Auto sync offline -> Sheets background
+
+TU V4 (tich hop module trang phuc — TRUOC DAY la script rieng le,
+       CHUA duoc goi trong main.py):
+  [+] Tich hop UniformChecker (HOG PersonDetector + AI TFLite + HSV Color
+      Analyzer) truc tiep vao vong lap camera chinh, chay song song voi
+      luong diem danh QR + khuon mat, khong can mo script rieng.
+  [+] Ket qua trang phuc duoc gan voi DANH TINH hoc sinh dang duoc nhan
+      dien gan nhat (current_identity), thay vi chi hien "???" nhu ban
+      test doc lap truoc day.
+  [+] Trang phuc SAI / KHONG RO se tu dong chup anh + ghi vao sheet
+      PhamLoi kem ly do chi tiet, dung chung ha tang voi vi pham "chua
+      quet the" / "nguoi la" (co cooldown rieng UNIFORM_VIOLATION_COOLDOWN
+      de tranh chup lap).
+  [+] Chi chay HOG+AI moi UNIFORM_CHECK_INTERVAL frame (mac dinh 15) de
+      giam tai CPU — khong chay tren tung frame nhu ban test doc lap.
+  [+] Phim tat moi: U = Bat/tat kiem tra trang phuc.
+  [+] HUD hien quy dinh trang phuc hom nay + so luot vi pham trang phuc.
 
 Cach chay:
     python main.py
@@ -45,7 +63,8 @@ from config import (
     COOLDOWN_SECONDS, CAMERA_INDEX, CREDENTIALS_FILE, SPREADSHEET_ID,
     FACE_GRACE_SECONDS, VIOLATION_COOLDOWN, FACE_SKIP_FRAMES,
     AUTO_SYNC_INTERVAL, BANNER_DURATION, DB_PATH,
-    STREAM_ENABLE, STREAM_PORT, STREAM_QUALITY, STREAM_FPS
+    STREAM_ENABLE, STREAM_PORT, STREAM_QUALITY, STREAM_FPS,
+    UNIFORM_CHECK_ENABLE, UNIFORM_CHECK_INTERVAL, UNIFORM_VIOLATION_COOLDOWN
 )
 from utils import (
     load_students, find_student,
@@ -60,6 +79,18 @@ try:
     FACE_LIB_OK = True
 except ImportError:
     FACE_LIB_OK = False
+
+# [v4] UniformChecker la tinh nang tuy chon: neu chua co model/thu vien
+# TFLite thi he thong van chay binh thuong (chi mat phan kiem tra trang phuc).
+try:
+    from uniform_checker import UniformChecker, COLOR_FAIL, COLOR_UNCLEAR
+    UNIFORM_LIB_OK = True
+except ImportError as e:
+    print(f"[WARN] Khong the nap module trang phuc: {e}")
+    print("       He thong van chay binh thuong, chi bo qua kiem tra trang phuc.")
+    UNIFORM_LIB_OK = False
+    COLOR_FAIL    = (0, 50, 220)
+    COLOR_UNCLEAR = (0, 165, 255)
 
 
 # =============================================================================
@@ -391,6 +422,20 @@ def run():
     face_eng = FaceEngine(students)
     print()
 
+    # [v4] Khoi tao module kiem tra trang phuc (khong lam sap he thong
+    # neu thieu model/thu vien — chi tat tinh nang nay)
+    uniform_checker = None
+    uniform_enabled = UNIFORM_CHECK_ENABLE and UNIFORM_LIB_OK
+    if uniform_enabled:
+        print("[UNIFORM] Dang khoi tao kiem tra trang phuc (HOG + AI/HSV)...")
+        try:
+            uniform_checker = UniformChecker(use_person_detector=True)
+            print(f"[UNIFORM] Quy dinh hom nay: {UniformChecker.get_today_rule_display()}")
+        except Exception as e:
+            print(f"[UNIFORM] Loi khoi tao, tat tinh nang trang phuc: {e}")
+            uniform_enabled = False
+        print()
+
     # Mo camera
     cap = cv2.VideoCapture(CAMERA_INDEX)
     if not cap.isOpened():
@@ -402,12 +447,17 @@ def run():
 
     print("=" * 60)
     print("  CAMERA SAN SANG")
-    print("  QR   : Quet the -> diem danh tu dong")
-    print("  FACE : Haar bat mat moi frame")
-    print("         face_recognition nhan dien dinh ky")
-    print("         Phat hien nguoi la tu dong")
-    print("  Phim : Q/ESC=Thoat  S=Thong ke  R=Reload")
-    print("         P=Pause mat  A=Them mat live")
+    print("  QR      : Quet the -> diem danh tu dong")
+    print("  FACE    : Haar bat mat moi frame")
+    print("            face_recognition nhan dien dinh ky")
+    print("            Phat hien nguoi la tu dong")
+    if uniform_enabled:
+        print("  TRANG PHUC : Kiem tra tu dong theo quy dinh tung ngay")
+        print("               (SAI/KHONG RO se tu chup anh + ghi PhamLoi)")
+    else:
+        print("  TRANG PHUC : [TAT] (thieu model hoac bi tat trong config.py)")
+    print("  Phim    : Q/ESC=Thoat  S=Thong ke  R=Reload")
+    print("            P=Pause mat  A=Them mat live  U=Bat/tat trang phuc")
     print("=" * 60)
 
     # Tracking
@@ -432,6 +482,18 @@ def run():
     violation_count = 0
     stranger_count  = 0   # [v3] dem nguoi la
     last_sync_time  = time.time()
+
+    # [v4] Trang phuc
+    uniform_paused       = False
+    uniform_cooldown     = {}     # {key: last_capture_ts}
+    uniform_fail_count   = 0
+    uniform_unclear_count = 0
+    last_uniform_result  = None   # Ket qua gan nhat de ve lien tuc giua cac lan check
+
+    # [v4] Danh tinh hoc sinh dang "hien dien" gan nhat truoc camera —
+    # dung de gan ket qua trang phuc voi dung hoc sinh thay vi "???"
+    current_identity = {"sid": None, "name": None, "ts": 0.0}
+    IDENTITY_TIMEOUT  = 12.0   # Giay — qua thoi gian nay ma khong thay lai mat -> quay ve UNKNOWN
 
     frame_count    = 0
     cam_fail_count = 0
@@ -526,6 +588,15 @@ def run():
         if (not face_paused and FACE_LIB_OK
                 and frame_count % FACE_SKIP_FRAMES == 0):
             face_results = face_eng.recognize(frame)
+
+            # [v4] Cap nhat danh tinh "hien dien" gan nhat cho module trang phuc.
+            # Uu tien hoc sinh da biet (co sid), bo qua nguoi la.
+            for fr in face_results:
+                if fr.get("student_id") and fr.get("status") != "stranger":
+                    current_identity = {
+                        "sid": fr["student_id"], "name": fr["name"], "ts": now
+                    }
+                    break
 
             grace_ids = {
                 sid for sid, t in recently_scan.items()
@@ -641,6 +712,66 @@ def run():
                         banner_end   = now + BANNER_DURATION * 1.5
 
         # =====================================================================
+        # BUOC 2C: KIEM TRA TRANG PHUC [v4] — HOG + AI TFLite / HSV Color
+        # =====================================================================
+        if (uniform_enabled and not uniform_paused
+                and frame_count % UNIFORM_CHECK_INTERVAL == 0):
+            try:
+                detections = uniform_checker.get_body_boxes(frame)
+                body_box   = detections[0]["body_box"] if detections else None
+                uni_result = uniform_checker.predict(frame, body_box=body_box)
+                last_uniform_result = uni_result
+                u_status = uni_result["status"]
+
+                # Het han danh tinh -> quay ve UNKNOWN de khong gan nham nguoi
+                if now - current_identity["ts"] > IDENTITY_TIMEOUT:
+                    current_identity = {"sid": None, "name": None, "ts": 0.0}
+                sid_u  = current_identity["sid"] or "UNKNOWN"
+                name_u = current_identity["name"] or "Chua xac dinh danh tinh"
+
+                if u_status == "FAIL":
+                    key = f"UNIFORM_FAIL_{sid_u}"
+                    if now - uniform_cooldown.get(key, 0) >= UNIFORM_VIOLATION_COOLDOWN:
+                        uniform_cooldown[key] = now
+                        uniform_fail_count += 1
+                        path = face_eng.capture_violation(
+                            frame.copy(), sid_u, name_u,
+                            reason=f"SAI TRANG PHUC: {uni_result['message']}"
+                        )
+                        if path:
+                            log_violation(
+                                sheet_vio, conn, sid_u, name_u, path,
+                                reason=f"Trang phuc ({uni_result['rule']}): {uni_result['message']}"
+                            )
+                        beep_error()
+                        banner_msg   = f"[TRANG PHUC] {name_u}: {uni_result['message']}"
+                        banner_color = COLOR_FAIL
+                        banner_end   = now + BANNER_DURATION * 1.5
+
+                elif u_status == "UNCLEAR":
+                    key = f"UNIFORM_UNCLEAR_{sid_u}"
+                    if now - uniform_cooldown.get(key, 0) >= UNIFORM_VIOLATION_COOLDOWN:
+                        uniform_cooldown[key] = now
+                        uniform_unclear_count += 1
+                        path = face_eng.capture_violation(
+                            frame.copy(), sid_u, name_u,
+                            reason=f"TRANG PHUC KHONG RO: {uni_result['message']}"
+                        )
+                        if path:
+                            log_violation(
+                                sheet_vio, conn, sid_u, name_u, path,
+                                reason=f"Can kiem tra thu cong: {uni_result['message']}"
+                            )
+                        banner_msg   = f"[TRANG PHUC] {name_u}: Can kiem tra lai"
+                        banner_color = COLOR_UNCLEAR
+                        banner_end   = now + BANNER_DURATION
+
+                # OK / SKIP: khong ghi log, chi hien thi tren HUD
+            except Exception as e:
+                # [v4] Loi kiem tra trang phuc KHONG duoc lam sap he thong diem danh
+                print(f"[UNIFORM] Loi khi kiem tra: {e}")
+
+        # =====================================================================
         # BUOC 3: VE OVERLAY
         # =====================================================================
         result_display = {"text": "", "status": "", "name": "", "ok": True}
@@ -683,11 +814,22 @@ def run():
         n_recg = len(face_results)
         n_qr   = len(decoded)
         cv2.putText(frame,
-                    f"Haar:{n_haar}  Nhan:{n_recg}  QR:{n_qr}  Nguoi la:{stranger_count}",
+                    f"Haar:{n_haar}  Nhan:{n_recg}  QR:{n_qr}  Nguoi la:{stranger_count}"
+                    f"  AoSai:{uniform_fail_count}  KhongRo:{uniform_unclear_count}",
                     (10, h_f - 58),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.44, (0, 255, 255), 1)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 255, 255), 1)
 
-        cv2.imshow("He Thong Diem Danh  v3.0", frame)
+        # [v4] Ve ket qua trang phuc gan nhat (goc tren-trai, duoi cac HUD khac)
+        if not uniform_enabled:
+            cv2.putText(frame, "[TRANG PHUC: KHONG KHA DUNG]", (10, 90),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (140, 140, 140), 1)
+        elif last_uniform_result is not None:
+            frame = uniform_checker.draw_result(frame, last_uniform_result, position=(10, 90))
+            if uniform_paused:
+                cv2.putText(frame, "[U] TAM DUNG", (10, 130),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 200, 255), 1)
+
+        cv2.imshow("He Thong Diem Danh  v4.0", frame)
 
         # =====================================================================
         # PHIM TAT
@@ -701,12 +843,23 @@ def run():
             present = sum(1 for c in count_map.values() if c % 2 == 1)
             print("\n" + "=" * 44)
             print(f"  THONG KE  {date.today().strftime('%d/%m/%Y')}")
-            print(f"  Tong hoc sinh : {len(students)}")
-            print(f"  Co mat        : {present}")
-            print(f"  Vang mat      : {len(students) - present}")
-            print(f"  Vi pham       : {violation_count}")
-            print(f"  Nguoi la      : {stranger_count}")
+            print(f"  Tong hoc sinh   : {len(students)}")
+            print(f"  Co mat          : {present}")
+            print(f"  Vang mat        : {len(students) - present}")
+            print(f"  Vi pham (the)   : {violation_count}")
+            print(f"  Nguoi la        : {stranger_count}")
+            if uniform_enabled:
+                print(f"  Sai trang phuc  : {uniform_fail_count}")
+                print(f"  Trang phuc KR   : {uniform_unclear_count}")
+                print(f"  Quy dinh hom nay: {UniformChecker.get_today_rule_display()}")
             print("=" * 44 + "\n")
+
+        elif key == ord("u"):
+            if not uniform_enabled:
+                print("[UNIFORM] Khong the bat: thieu model/thu vien hoac da tat trong config.py.")
+            else:
+                uniform_paused = not uniform_paused
+                print(f"[UNIFORM] {'TAM DUNG' if uniform_paused else 'TIEP TUC'} kiem tra trang phuc.")
 
         elif key == ord("r"):
             print("\n[RELOAD] Dang tai lai...")
@@ -750,7 +903,15 @@ def run():
     conn.close()
     cap.release()
     cv2.destroyAllWindows()
-    print("\n[OK] He thong da dong. Tam biet!")
+
+    print("\n" + "=" * 44)
+    print("  TONG KET BUOI HOM NAY")
+    print(f"  Vi pham the/nguoi la : {violation_count} the, {stranger_count} nguoi la")
+    if uniform_enabled:
+        print(f"  Sai trang phuc       : {uniform_fail_count}")
+        print(f"  Trang phuc khong ro  : {uniform_unclear_count}")
+    print("=" * 44)
+    print("[OK] He thong da dong. Tam biet!")
 
 
 # =============================================================================
